@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SBU3 居家上班規劃 - 2027版 (中華民國116年行政院日曆)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen p-3 relative">
+
+    <!-- 右上角固定「居家辦公規則」卡片 -->
+    <div class="fixed top-3 right-3 z-40 bg-white border border-slate-300 shadow-md rounded-lg p-2 text-[11px] text-slate-600 space-y-0.5 max-w-[180px]">
+        <div class="font-bold text-slate-800 flex items-center gap-1 text-xs">🏠 居家辦公規則</div>
+        <div>1. 滿 <b class="text-blue-600">半年</b> 享有居家福利</div>
+        <div>2. 單日最多 <b class="text-blue-600">4 人</b> 居家</div>
+        <div>3. 專員每週一天</div>
+        <div>4. 管理師兩週一天</div>
+    </div>
+
+    <!-- 1. 身分選擇 Modal 彈窗 -->
+    <div id="loginModal" class="fixed inset-0 bg-blue-600/90 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-300">
+        <div class="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center space-y-6">
+            <div class="space-y-2">
+                <h2 class="text-2xl font-extrabold text-slate-900 tracking-wide">身分選擇</h2>
+                <p class="text-sm text-slate-500">請選擇您的姓名進入系統</p>
+            </div>
+            
+            <div class="space-y-4 text-left">
+                <!-- 身分下拉選單 -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">選擇進入人員：</label>
+                    <select id="modalUserSelect" class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-xl p-3.5 outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                        <!-- 動態生成選項 -->
+                    </select>
+                </div>
+
+                <!-- 進入系統按鈕 -->
+                <button id="enterSystemBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-blue-500/30 transition active:scale-[0.98]">
+                    進入系統
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 主系統畫面 -->
+    <div class="max-w-[1600px] mx-auto space-y-3 pr-48">
+        
+        <!-- 頂部資訊列 -->
+        <div class="flex items-center justify-between bg-white p-2.5 rounded-lg shadow-sm border border-slate-200">
+            <div class="flex items-center gap-3">
+                <span class="text-xs font-semibold text-slate-600">當前身分：<b id="activeUserBadge" class="text-blue-600 font-bold text-sm">未選擇</b></span>
+                <span id="autoSaveHint" class="text-[11px] text-emerald-600 font-medium hidden">✓ 已即時雲端同步</span>
+            </div>
+            <!-- 返回身分選擇功能按鈕 -->
+            <button id="switchUserBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1 px-2.5 rounded-lg border border-slate-300 transition flex items-center gap-1">
+                🔄 切換身分
+            </button>
+        </div>
+
+        <!-- Jovin 專屬人員管理區塊 (僅 Jovin 登入時顯示) -->
+        <div id="adminPanel" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2 shadow-sm">
+            <div class="text-xs font-bold text-amber-800 flex items-center gap-1">
+                👑 Jovin大大專屬人員管理選單
+            </div>
+            <div class="flex flex-wrap gap-3 items-center">
+                <!-- 新增人員 -->
+                <div class="flex gap-1.5 items-center">
+                    <input type="text" id="newMemberInput" placeholder="新人員姓名..." class="bg-white border border-slate-200 text-xs rounded-lg px-2.5 py-1 outline-none focus:ring-2 focus:ring-amber-400">
+                    <select id="newMemberRoleSelect" class="bg-white border border-slate-200 text-xs rounded-lg px-2 py-1 outline-none">
+                        <option value="specialist">專員</option>
+                        <option value="manager">管理師</option>
+                        <option value="unlimited">無限制</option>
+                    </select>
+                    <button id="addMemberBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1 rounded-lg transition whitespace-nowrap">
+                        ➕ 新增成員
+                    </button>
+                </div>
+
+                <div class="h-4 w-px bg-amber-300 hidden sm:block"></div>
+
+                <!-- 刪除人員 -->
+                <div class="flex gap-1.5 items-center">
+                    <select id="deleteUserSelect" class="bg-white border border-slate-200 text-xs rounded-lg px-2 py-1 outline-none focus:ring-2 focus:ring-rose-400">
+                        <!-- 動態填入刪除名單 -->
+                    </select>
+                    <button id="deleteMemberBtn" class="bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg transition whitespace-nowrap">
+                        🗑️ 刪除成員
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 標題與月份選擇器 -->
+        <div class="text-center space-y-2">
+            <div class="text-xs font-medium text-blue-600">你好，<span id="userNameText">使用者</span>！</div>
+            <h1 id="monthTitleText" class="text-xl font-bold text-slate-900">2027年1月 居家上班規劃</h1>
+            
+            <!-- 月份標籤按鈕 -->
+            <div class="flex flex-wrap justify-center items-center gap-1.5 pt-1">
+                <div id="monthButtons" class="flex gap-1 overflow-x-auto">
+                    <!-- 1-12月動態生成 -->
+                </div>
+
+                <div class="flex gap-2 ml-2">
+                    <button id="downloadExcelBtn" class="bg-teal-500 hover:bg-teal-600 text-white text-xs px-2.5 py-1.5 rounded-lg font-medium transition flex items-center gap-1">
+                        📥 下載彩色 Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 橫向矩陣日曆 Table -->
+        <div class="bg-white border border-slate-200 rounded-lg overflow-x-auto shadow-sm">
+            <table id="matrixTable" class="w-full text-center border-collapse text-xs">
+                <thead id="matrixHead"></thead>
+                <tbody id="matrixBody"></tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Supabase 連線設定 ---
+        const SUPABASE_URL = 'https://djjczmcajxjyqjkbjoud.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_kHc06K5jzjqPiAVj-eMGTg_1oOhA_6t';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // 中華民國116年 (2027年) 放假日與指定假別對照表
+        const HOLIDAYS_2027 = {
+            '2027-01-01': '中華民國開國紀念日',
+            '2027-01-02': '元旦連假',
+            '2027-01-03': '元旦連假',
+            '2027-02-06': '農曆春節彈性放假',
+            '2027-02-07': '春節週末',
+            '2027-02-08': '農曆除夕',
+            '2027-02-09': '春節(初一)',
+            '2027-02-10': '春節(初二)',
+            '2027-02-11': '春節(初三)',
+            '2027-02-12': '春節補假',
+            '2027-02-13': '春節週末',
+            '2027-02-14': '春節週末',
+            '2027-02-27': '228和平紀念日連假',
+            '2027-02-28': '228和平紀念日',
+            '2027-03-01': '228和平紀念日補假',
+            '2027-04-03': '清明連假',
+            '2027-04-04': '兒童節',
+            '2027-04-05': '民族掃墓節(清明節)',
+            '2027-04-06': '兒童節補假',
+            '2027-04-30': '調整放假日',
+            '2027-06-09': '指定放假日',
+            '2027-06-19': '端午連假',
+            '2027-06-20': '端午節',
+            '2027-09-15': '指定放假日',
+            '2027-09-24': '中秋節',
+            '2027-09-25': '中秋連假',
+            '2027-09-26': '中秋連假',
+            '2027-09-28': '教師節',
+            '2027-10-09': '國慶連假',
+            '2027-10-10': '國慶日',
+            '2027-10-11': '國慶日補假',
+            '2027-10-25': '臺灣光復節',
+            '2027-12-24': '平安夜放假'
+        };
+
+        // 預設成員身分規則
+        const DEFAULT_ROLES = {
+            'Sally': 'specialist',
+            'Hanwei': 'specialist',
+            'Winnie': 'specialist',
+            'Quiny': 'specialist',
+            'Angela': 'specialist',
+            'Hillary': 'manager',
+            'Celia': 'manager',
+            'Wendy': 'manager',
+            'Jovin大大專屬入口': 'unlimited'
+        };
+
+        const DEFAULT_WFH_DATA = {
+            '2027-01-04': ['Sally', 'Hanwei'],
+            '2027-01-05': ['Winnie'],
+            '2027-01-06': ['Hillary']
+        };
+
+        let memberRoles = DEFAULT_ROLES;
+        let wfhData = DEFAULT_WFH_DATA;
+
+        function getOrderedMembers() {
+            const keys = Object.keys(memberRoles).filter(m => m !== 'Jovin大大專屬入口');
+            return [...keys, 'Jovin大大專屬入口'];
+        }
+
+        let members = getOrderedMembers();
+
+        const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+        
+        let currentYear = 2027;
+        let currentMonth = 0; // 0 = 1月
+        let currentUser = null;
+
+        // --- Supabase 資料同步核心函數 ---
+        async function fetchCloudData() {
+            try {
+                const { data, error } = await _supabase
+                    .from('message')
+                    .select('*')
+                    .eq('id', 1)
+                    .single();
+
+                if (data && data.content) {
+                    const parsed = JSON.parse(data.content);
+                    if (parsed.wfhData) wfhData = parsed.wfhData;
+                    if (parsed.memberRoles) {
+                        memberRoles = parsed.memberRoles;
+                        members = getOrderedMembers();
+                        updateMemberDropdowns();
+                    }
+                    renderMatrix();
+                }
+            } catch (e) {
+                console.error('雲端讀取失敗或尚未初始化數據：', e);
+            }
+        }
+
+        async function saveCloudData() {
+            try {
+                const payload = JSON.stringify({ wfhData, memberRoles });
+                const { error } = await _supabase
+                    .from('message')
+                    .upsert([{ id: 1, content: payload }]);
+
+                if (error) {
+                    console.error('雲端儲存失敗：', error);
+                } else {
+                    showAutoSaveHint();
+                }
+            } catch (e) {
+                console.error('雲端儲存異常：', e);
+            }
+        }
+
+        function listenToRealtime() {
+            _supabase
+                .channel('public:message')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'message' }, payload => {
+                    if (payload.new && payload.new.content) {
+                        const parsed = JSON.parse(payload.new.content);
+                        if (parsed.wfhData) wfhData = parsed.wfhData;
+                        if (parsed.memberRoles) {
+                            memberRoles = parsed.memberRoles;
+                            members = getOrderedMembers();
+                            updateMemberDropdowns();
+                        }
+                        renderMatrix();
+                        showAutoSaveHint();
+                    }
+                })
+                .subscribe();
+        }
+
+        function showAutoSaveHint() {
+            const hint = document.getElementById('autoSaveHint');
+            if (hint) {
+                hint.classList.remove('hidden');
+                setTimeout(() => hint.classList.add('hidden'), 2000);
+            }
+        }
+
+        // UI 元素
+        const loginModal = document.getElementById('loginModal');
+        const modalUserSelect = document.getElementById('modalUserSelect');
+        const deleteUserSelect = document.getElementById('deleteUserSelect');
+        const enterSystemBtn = document.getElementById('enterSystemBtn');
+        const switchUserBtn = document.getElementById('switchUserBtn');
+        const addMemberBtn = document.getElementById('addMemberBtn');
+        const deleteMemberBtn = document.getElementById('deleteMemberBtn');
+        const downloadExcelBtn = document.getElementById('downloadExcelBtn');
+        const newMemberInput = document.getElementById('newMemberInput');
+        const newMemberRoleSelect = document.getElementById('newMemberRoleSelect');
+        const userNameText = document.getElementById('userNameText');
+        const activeUserBadge = document.getElementById('activeUserBadge');
+        const adminPanel = document.getElementById('adminPanel');
+
+        // 格式化顯示名稱
+        function formatDisplayName(name) {
+            if (name === 'Jovin大大專屬入口') {
+                return 'Jovin大大<br>專屬入口';
+            }
+            return name;
+        }
+
+        // 更新人員下拉選單
+        function updateMemberDropdowns() {
+            modalUserSelect.innerHTML = '<option value="" disabled selected>請選擇您的姓名...</option>';
+            deleteUserSelect.innerHTML = '<option value="" disabled selected>選擇要刪除的人員...</option>';
+
+            members.forEach(name => {
+                const opt1 = document.createElement('option');
+                opt1.value = name;
+                opt1.innerText = name === 'Jovin大大專屬入口' ? 'Jovin大大 專屬入口' : name;
+                modalUserSelect.appendChild(opt1);
+
+                if (name !== 'Jovin大大專屬入口') {
+                    const opt2 = document.createElement('option');
+                    opt2.value = name;
+                    opt2.innerText = name;
+                    deleteUserSelect.appendChild(opt2);
+                }
+            });
+        }
+
+        // 開啟切換身分 Modal
+        switchUserBtn.addEventListener('click', () => {
+            loginModal.classList.remove('opacity-0', 'pointer-events-none');
+        });
+
+        // Jovin 專屬新增人員
+        addMemberBtn.addEventListener('click', async () => {
+            const name = newMemberInput.value.trim();
+            const role = newMemberRoleSelect.value;
+            if (!name) return alert('⚠️ 請輸入人員姓名！');
+            if (memberRoles[name]) return alert('⚠️ 該人員已存在！');
+            
+            memberRoles[name] = role;
+            members = getOrderedMembers();
+
+            newMemberInput.value = '';
+            updateMemberDropdowns();
+            renderMatrix();
+            await saveCloudData();
+            alert(`ℹ️ 已成功新增人員：${name}`);
+        });
+
+        // Jovin 專屬刪除人員
+        deleteMemberBtn.addEventListener('click', async () => {
+            const selected = deleteUserSelect.value;
+            if (!selected) return alert('⚠️ 請先選擇要刪除的人員！');
+            if (confirm(`❓ 確定要刪除「${selected}」嗎？`)) {
+                delete memberRoles[selected];
+                members = getOrderedMembers();
+
+                if (currentUser === selected) {
+                    currentUser = null;
+                    userNameText.innerText = '使用者';
+                    activeUserBadge.innerText = '未選擇';
+                    adminPanel.classList.add('hidden');
+                }
+                updateMemberDropdowns();
+                renderMatrix();
+                await saveCloudData();
+                alert(`ℹ️ 已刪除人員：${selected}`);
+            }
+        });
+
+        // 下載彩色 Excel 功能
+        downloadExcelBtn.addEventListener('click', () => {
+            const table = document.getElementById('matrixTable');
+            const cloneTable = table.cloneNode(true);
+
+            const allCells = cloneTable.querySelectorAll('th, td');
+            allCells.forEach(cell => {
+                cell.style.width = '55px';
+                cell.style.minWidth = '55px';
+            });
+            const nameCells = cloneTable.querySelectorAll('.name-col');
+            nameCells.forEach(cell => {
+                cell.style.width = '90px';
+                cell.style.minWidth = '90px';
+            });
+
+            const fileName = `SBU3_居家辦公規劃_${currentYear}年${currentMonth + 1}月.xls`;
+            
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            let colWidthsXml = '<x:Column x:Width="90"/>';
+            for (let i = 0; i < daysInMonth; i++) {
+                colWidthsXml += '<x:Column x:Width="75"/>';
+            }
+
+            const excelTemplate = `
+                <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+                <head>
+                    <meta charset="utf-8" />
+                    <!--[if gte mso 9]>
+                    <xml>
+                        <x:ExcelWorkbook>
+                            <x:ExcelWorksheets>
+                                <x:ExcelWorksheet>
+                                    <x:Name>${currentYear}年${currentMonth + 1}月</x:Name>
+                                    <x:WorksheetOptions>
+                                        <x:DisplayGridlines/>
+                                    </x:WorksheetOptions>
+                                </x:ExcelWorksheet>
+                            </x:ExcelWorksheets>
+                        </x:ExcelWorkbook>
+                    </xml>
+                    <![endif]-->
+                    <style>
+                        table { 
+                            border-collapse: collapse; 
+                            font-family: "Calibri", "Microsoft JhengHei", "微軟正黑體", sans-serif; 
+                            font-size: 10pt; 
+                        }
+                        tr { height: 32px; }
+                        th, td { 
+                            border: 1px solid #cbd5e1; 
+                            text-align: center; 
+                            padding: 2px 1px; 
+                            vertical-align: middle; 
+                            white-space: nowrap;
+                            font-size: 10pt;
+                            mso-number-format:"\@";
+                        }
+                        .date-cell { font-size: 10pt; font-weight: normal; }
+                        .name-col { width: 90px !important; min-width: 90px !important; text-align: left; line-height: 1.2; font-size: 10pt; font-weight: bold; }
+                        .holiday-bg { background-color: #ffe4e6 !important; color: #e11d48 !important; font-weight: bold; }
+                        .wfh-bg { background-color: #fef08a !important; color: #2563eb !important; font-weight: bold; }
+                        .wfh-symbol { font-size: 14px !important; font-weight: bold !important; line-height: 1; color: #2563eb !important; }
+                        .header-bg { background-color: #f8fafc; font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    ${cloneTable.outerHTML}
+                </body>
+                </html>
+            `;
+
+            const blob = new Blob([excelTemplate], { type: 'application/vnd.ms-excel;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // 進入系統按鈕
+        enterSystemBtn.addEventListener('click', () => {
+            const selected = modalUserSelect.value;
+            if (!selected) return alert('⚠️ 請先選擇您的姓名！');
+            currentUser = selected;
+            userNameText.innerText = currentUser === 'Jovin大大專屬入口' ? 'Jovin大大' : currentUser;
+            activeUserBadge.innerText = currentUser === 'Jovin大大專屬入口' ? 'Jovin大大' : currentUser;
+            
+            if (currentUser === 'Jovin大大專屬入口') {
+                adminPanel.classList.remove('hidden');
+            } else {
+                adminPanel.classList.add('hidden');
+            }
+
+            loginModal.classList.add('opacity-0', 'pointer-events-none');
+            renderMatrix();
+        });
+
+        // 計算 ISO 週數
+        function getISOWeek(dateObj) {
+            const d = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
+            d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+            return { year: d.getUTCFullYear(), week: weekNo };
+        }
+
+        // 檢查規則限制
+        function validateRoleQuota(dateStr, user) {
+            const role = memberRoles[user];
+            if (role === 'unlimited') return true;
+
+            const targetDate = new Date(dateStr);
+            const targetWeekInfo = getISOWeek(targetDate);
+            const targetWeekKey = targetWeekInfo.year * 100 + targetWeekInfo.week;
+
+            if (role === 'specialist') {
+                for (let dStr in wfhData) {
+                    if (wfhData[dStr].includes(user) && dStr !== dateStr) {
+                        const d = new Date(dStr);
+                        const wInfo = getISOWeek(d);
+                        const wKey = wInfo.year * 100 + wInfo.week;
+                        if (wKey === targetWeekKey) {
+                            alert(`🚫 限制提醒：專員同一曆週（第 ${targetWeekInfo.week} 週）最多只能選擇 1 天居家辦公！`);
+                            return false;
+                        }
+                    }
+                }
+            } else if (role === 'manager') {
+                for (let dStr in wfhData) {
+                    if (wfhData[dStr].includes(user) && dStr !== dateStr) {
+                        const d = new Date(dStr);
+                        const wInfo = getISOWeek(d);
+                        const weekDiff = Math.abs((targetWeekInfo.year - wInfo.year) * 52 + (targetWeekInfo.week - wInfo.week));
+                        
+                        if (weekDiff < 2) {
+                            alert(`🚫 限制提醒：管理師填寫 1 週後必須隔週才能再填寫！(第 ${targetWeekInfo.week} 週與第 ${wInfo.week} 週未相隔一週)`);
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        // 渲染 1-12 月份按鈕
+        function renderMonthButtons() {
+            const container = document.getElementById('monthButtons');
+            container.innerHTML = '';
+            for (let m = 0; m < 12; m++) {
+                const isSelected = m === currentMonth;
+                const btn = document.createElement('button');
+                btn.className = `px-2 py-0.5 rounded text-xs font-semibold transition ${isSelected ? 'bg-blue-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'}`;
+                btn.innerText = `${m + 1}月`;
+                btn.onclick = () => {
+                    currentMonth = m;
+                    renderMonthButtons();
+                    renderMatrix();
+                };
+                container.appendChild(btn);
+            }
+        }
+
+        // 渲染矩陣表格
+        function renderMatrix() {
+            document.getElementById('monthTitleText').innerText = `${currentYear}年${currentMonth + 1}月 居家上班規劃`;
+            const head = document.getElementById('matrixHead');
+            const body = document.getElementById('matrixBody');
+            head.innerHTML = '';
+            body.innerHTML = '';
+
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+            // Table Header
+            let trHead = `<tr class="border-b border-slate-200" style="height: 34px;"><th class="p-1 header-bg border-r text-blue-700 font-bold sticky left-0 z-10 text-left pl-2 text-xs name-col" style="background-color: #f8fafc; width: 90px; min-width: 90px;">姓名</th>`;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateObj = new Date(currentYear, currentMonth, d);
+                const dayOfWeek = dateObj.getDay();
+                const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                
+                const holidayName = HOLIDAYS_2027[dateStr];
+                const isHoliday = !!holidayName || dayOfWeek === 0 || dayOfWeek === 6;
+
+                const textClass = isHoliday ? 'text-rose-500 font-bold holiday-bg' : 'text-slate-700';
+                const bgStyle = isHoliday ? 'background-color: #ffe4e6; color: #e11d48;' : 'background-color: #ffffff;';
+
+                trHead += `<th class="p-0.5 border-r border-slate-200 ${textClass} date-cell" style="${bgStyle} width: 42px; min-width: 42px;">
+                    <div class="text-[11px] leading-tight">${currentMonth + 1}/${d}</div>
+                    <div class="text-[9px] scale-90 leading-tight">(${WEEKDAYS[dayOfWeek]})</div>
+                </th>`;
+            }
+            trHead += `</tr>`;
+            head.innerHTML = trHead;
+
+            // 成員列
+            members.forEach(member => {
+                const displayName = formatDisplayName(member);
+                let trRow = `<tr class="border-b border-slate-200 hover:bg-slate-50/50" style="height: 32px;"><td class="p-1 border-r border-slate-200 font-bold text-blue-600 bg-white sticky left-0 z-10 text-left pl-2 text-xs leading-tight name-col" style="background-color: #ffffff; color: #2563eb; width: 90px; min-width: 90px;">${displayName}</td>`;
+
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const dateObj = new Date(currentYear, currentMonth, d);
+                    const dayOfWeek = dateObj.getDay();
+                    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    
+                    const holidayName = HOLIDAYS_2027[dateStr];
+                    const isHoliday = !!holidayName || dayOfWeek === 0 || dayOfWeek === 6;
+
+                    const isEditable = currentUser && (member === currentUser) && !isHoliday;
+                    const cursorClass = isEditable ? 'cursor-pointer hover:bg-amber-100/50' : 'cursor-not-allowed';
+
+                    const bookedList = wfhData[dateStr] || [];
+                    const isBooked = bookedList.includes(member);
+
+                    let cellBgClass = '';
+                    let styleAttr = 'width: 42px; min-width: 42px;';
+                    let indicator = '';
+
+                    if (isHoliday) {
+                        cellBgClass = 'holiday-bg';
+                        styleAttr += 'background-color: #ffe4e6;';
+                    }
+
+                    if (isBooked) {
+                        cellBgClass = 'wfh-bg';
+                        styleAttr += 'background-color: #fef08a; color: #2563eb; font-weight: bold;';
+                        indicator = `<span class="wfh-symbol text-blue-600 font-bold text-sm leading-none" style="color:#2563eb;">○</span>`;
+                    }
+
+                    trRow += `<td class="p-0 border-r border-slate-200 text-center ${cellBgClass} ${cursorClass}" style="${styleAttr}" onclick="toggleWFH('${dateStr}', '${member}', ${isHoliday}, '${holidayName || ''}')">
+                        ${indicator}
+                    </td>`;
+                }
+                trRow += `</tr>`;
+                body.innerHTML += trRow;
+            });
+        }
+
+        // 點擊預約 WFH
+        async function toggleWFH(dateStr, member, isHoliday, holidayName) {
+            if (isHoliday) {
+                const reason = holidayName ? `國定假日/補假（${holidayName}）` : '週末假期';
+                alert(`🚫 提醒：${reason}無法設定居家辦公！`);
+                return;
+            }
+            if (!currentUser) {
+                alert('⚠️ 提醒：請先選擇您的身分以開始排程！');
+                loginModal.classList.remove('opacity-0', 'pointer-events-none');
+                return;
+            }
+            if (member !== currentUser) {
+                alert(`🔒 權限提醒：您當前登入為「${currentUser}」，無法修改其他人的預約！`);
+                return;
+            }
+
+            if (!wfhData[dateStr]) wfhData[dateStr] = [];
+            const idx = wfhData[dateStr].indexOf(member);
+
+            if (idx > -1) {
+                wfhData[dateStr].splice(idx, 1);
+            } else {
+                const userRole = memberRoles[member];
+                
+                if (userRole !== 'unlimited') {
+                    if (wfhData[dateStr].length >= 4) {
+                        alert('⚠️ 額滿提醒：單日最多限 4 人居家辦公！');
+                        return;
+                    }
+                }
+                
+                if (!validateRoleQuota(dateStr, member)) {
+                    return;
+                }
+                wfhData[dateStr].push(member);
+            }
+            
+            // 即時更新畫面並同步至 Supabase
+            renderMatrix();
+            await saveCloudData();
+        }
+
+        // 初始化：連線雲端資料與即時監聽
+        async function initApp() {
+            updateMemberDropdowns();
+            renderMonthButtons();
+            renderMatrix();
+            await fetchCloudData();
+            listenToRealtime();
+        }
+
+        initApp();
+    </script>
+</body>
+</html>
