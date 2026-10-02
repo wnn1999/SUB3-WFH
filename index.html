@@ -151,7 +151,7 @@
     </div>
 
     <script>
-        // Supabase Client 初始化
+        // 【唯一一處】Supabase Client 初始化全域變數
         const SUPABASE_URL = 'https://djjczmcajxjyqjkbjoud.supabase.co';
         const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_kHc06K5jzjqPiAVj-eMGTg_1oOhA_6t';
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
@@ -199,7 +199,7 @@
 
         // --- 雲端資料同步機制 ---
         async function fetchCloudData() {
-            // 1. 抓取成員資料
+            // 直接引用全域 supabase 變數
             const { data: memberRows, error: mErr } = await supabase.from('members').select('*');
             if (!mErr && memberRows) {
                 memberRoles = {};
@@ -209,7 +209,6 @@
                 updateMemberDropdowns();
             }
 
-            // 2. 抓取預約紀錄
             const { data: recordRows, error: rErr } = await supabase.from('wfh_records').select('*');
             if (!rErr && recordRows) {
                 wfhData = {};
@@ -223,6 +222,7 @@
         }
 
         function subscribeRealtime() {
+            // 直接引用全域 supabase 變數
             supabase
                 .channel('realtime_wfh_changes')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'wfh_records' }, () => {
@@ -539,7 +539,7 @@
             document.body.removeChild(link);
         });
 
-        // 初始化
+        // 初始化頁面與資料
         renderMonthButtons();
         fetchCloudData();
         subscribeRealtime();
