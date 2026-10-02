@@ -151,10 +151,12 @@
     </div>
 
     <script>
-        // 【唯一一處】Supabase Client 初始化全域變數
+        // 避開全域名稱衝突，將變數命名為 supabaseClient
         const SUPABASE_URL = 'https://djjczmcajxjyqjkbjoud.supabase.co';
         const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_kHc06K5jzjqPiAVj-eMGTg_1oOhA_6t';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+        
+        // 使用 window.supabase 建立 Client 並賦值給 supabaseClient
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
         const HOLIDAYS_2027 = {
             '2027-01-01': '中華民國開國紀念日', '2027-01-02': '元旦連假', '2027-01-03': '元旦連假',
@@ -199,8 +201,7 @@
 
         // --- 雲端資料同步機制 ---
         async function fetchCloudData() {
-            // 直接引用全域 supabase 變數
-            const { data: memberRows, error: mErr } = await supabase.from('members').select('*');
+            const { data: memberRows, error: mErr } = await supabaseClient.from('members').select('*');
             if (!mErr && memberRows) {
                 memberRoles = {};
                 memberRows.forEach(row => { memberRoles[row.name] = row.role; });
@@ -209,7 +210,7 @@
                 updateMemberDropdowns();
             }
 
-            const { data: recordRows, error: rErr } = await supabase.from('wfh_records').select('*');
+            const { data: recordRows, error: rErr } = await supabaseClient.from('wfh_records').select('*');
             if (!rErr && recordRows) {
                 wfhData = {};
                 recordRows.forEach(row => {
@@ -222,8 +223,7 @@
         }
 
         function subscribeRealtime() {
-            // 直接引用全域 supabase 變數
-            supabase
+            supabaseClient
                 .channel('realtime_wfh_changes')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'wfh_records' }, () => {
                     fetchCloudData();
@@ -273,7 +273,7 @@
             if (!name) return alert('⚠️ 請輸入人員姓名！');
             if (memberRoles[name]) return alert('⚠ 該人員已存在！');
 
-            const { error } = await supabase.from('members').insert([{ name, role }]);
+            const { error } = await supabaseClient.from('members').insert([{ name, role }]);
             if (error) {
                 alert('❌ 新增失敗：' + error.message);
             } else {
@@ -285,15 +285,15 @@
 
         deleteMemberBtn.addEventListener('click', async () => {
             const selected = deleteUserSelect.value;
-            if (!selected) return alert('⚠️ 請先選擇要刪除的人員！');
-            if (selected === ADMIN_NAME) return alert('⚠️ 此為管理者專屬入口，無法刪除！');
+            if (!selected) return alert('⚠️️ 請先選擇要刪除的人員！');
+            if (selected === ADMIN_NAME) return alert('⚠️️ 此為管理者專屬入口，無法刪除！');
             
             if (confirm(`❓ 確定要刪除「${selected}」嗎？`)) {
-                const { error } = await supabase.from('members').delete().eq('name', selected);
+                const { error } = await supabaseClient.from('members').delete().eq('name', selected);
                 if (error) {
                     alert('❌ 刪除失敗：' + error.message);
                 } else {
-                    await supabase.from('wfh_records').delete().eq('user_name', selected);
+                    await supabaseClient.from('wfh_records').delete().eq('user_name', selected);
                     if (currentUser === selected) {
                         currentUser = null;
                         userNameText.innerText = '使用者';
@@ -479,7 +479,7 @@
 
             if (isBooked) {
                 // 刪除紀錄
-                const { error } = await supabase.from('wfh_records')
+                const { error } = await supabaseClient.from('wfh_records')
                     .delete()
                     .eq('date_str', dateStr)
                     .eq('user_name', member);
@@ -496,7 +496,7 @@
                 }
                 if (!validateRoleQuota(dateStr, member)) return;
 
-                const { error } = await supabase.from('wfh_records')
+                const { error } = await supabaseClient.from('wfh_records')
                     .insert([{ date_str: dateStr, user_name: member }]);
                 
                 if (error) alert('❌ 雲端預約失敗：' + error.message);
