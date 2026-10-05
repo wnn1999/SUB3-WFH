@@ -83,6 +83,7 @@
                     👑 Jovin大大專屬人員管理選單
                 </div>
                 <div class="flex flex-wrap gap-2 items-center">
+                    <!-- 1. 新增成員 -->
                     <div class="flex gap-1.5 items-center">
                         <input type="text" id="newMemberInput" placeholder="新人員姓名..." class="bg-white border border-slate-200 text-xs rounded-md px-2 py-1 outline-none focus:ring-2 focus:ring-amber-400">
                         <select id="newMemberRoleSelect" class="bg-white border border-slate-200 text-xs rounded-md px-2 py-1 outline-none">
@@ -94,7 +95,27 @@
                             ➕ 新增成員
                         </button>
                     </div>
+
                     <div class="h-3 w-px bg-amber-300 hidden sm:block"></div>
+
+                    <!-- 2. 修改職位 / 人員升級 (新增功能) -->
+                    <div class="flex gap-1.5 items-center">
+                        <select id="updateUserSelect" class="bg-white border border-slate-200 text-xs rounded-md px-2 py-1 outline-none focus:ring-2 focus:ring-amber-400">
+                            <!-- 動態填入變更職位名單 -->
+                        </select>
+                        <select id="updateMemberRoleSelect" class="bg-white border border-slate-200 text-xs rounded-md px-2 py-1 outline-none">
+                            <option value="specialist">專員</option>
+                            <option value="manager">管理師</option>
+                            <option value="unlimited">無限制</option>
+                        </select>
+                        <button id="updateRoleBtn" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-2.5 py-1 rounded-md transition whitespace-nowrap shadow-sm">
+                            ✏️ 更新職位
+                        </button>
+                    </div>
+
+                    <div class="h-3 w-px bg-amber-300 hidden sm:block"></div>
+
+                    <!-- 3. 刪除成員 -->
                     <div class="flex gap-1.5 items-center">
                         <select id="deleteUserSelect" class="bg-white border border-slate-200 text-xs rounded-md px-2 py-1 outline-none focus:ring-2 focus:ring-rose-400">
                             <!-- 動態填入刪除名單 -->
@@ -188,9 +209,12 @@
         const mainAppContainer = document.getElementById('mainAppContainer');
         const modalUserSelect = document.getElementById('modalUserSelect');
         const deleteUserSelect = document.getElementById('deleteUserSelect');
+        const updateUserSelect = document.getElementById('updateUserSelect');
+        const updateMemberRoleSelect = document.getElementById('updateMemberRoleSelect');
         const enterSystemBtn = document.getElementById('enterSystemBtn');
         const switchUserBtn = document.getElementById('switchUserBtn');
         const addMemberBtn = document.getElementById('addMemberBtn');
+        const updateRoleBtn = document.getElementById('updateRoleBtn');
         const deleteMemberBtn = document.getElementById('deleteMemberBtn');
         const downloadExcelBtn = document.getElementById('downloadExcelBtn');
         const newMemberInput = document.getElementById('newMemberInput');
@@ -240,10 +264,14 @@
 
         function updateMemberDropdowns() {
             const currentSelectedModal = modalUserSelect.value;
+            const currentSelectedUpdate = updateUserSelect.value;
+
             modalUserSelect.innerHTML = '<option value="" disabled>請選擇您的姓名...</option>';
             deleteUserSelect.innerHTML = '<option value="" disabled selected>選擇要刪除的人員...</option>';
+            updateUserSelect.innerHTML = '<option value="" disabled selected>選擇要修改的人員...</option>';
 
             members.forEach(name => {
+                // 1. 身分選擇選單
                 const opt1 = document.createElement('option');
                 opt1.value = name;
                 opt1.innerText = name;
@@ -251,15 +279,43 @@
                 modalUserSelect.appendChild(opt1);
 
                 if (name !== ADMIN_NAME) {
+                    // 2. 刪除人員選單
                     const opt2 = document.createElement('option');
                     opt2.value = name;
                     opt2.innerText = name;
                     deleteUserSelect.appendChild(opt2);
+
+                    // 3. 更新職位選單 (新增)
+                    const opt3 = document.createElement('option');
+                    opt3.value = name;
+                    opt3.innerText = `${name} (${getRoleDisplayName(memberRoles[name])})`;
+                    if (name === currentSelectedUpdate) opt3.selected = true;
+                    updateUserSelect.appendChild(opt3);
                 }
             });
 
             if (!currentSelectedModal) modalUserSelect.selectedIndex = 0;
+            
+            // 當前選取的更新人員變更時，自動切換該人員當前的職位下拉選單
+            syncUpdateRoleSelect();
         }
+
+        function getRoleDisplayName(role) {
+            if (role === 'specialist') return '專員';
+            if (role === 'manager') return '管理師';
+            if (role === 'unlimited') return '無限制';
+            return '未設定';
+        }
+
+        function syncUpdateRoleSelect() {
+            const selectedUser = updateUserSelect.value;
+            if (selectedUser && memberRoles[selectedUser]) {
+                updateMemberRoleSelect.value = memberRoles[selectedUser];
+            }
+        }
+
+        // 綁定更新人員下拉切換事件
+        updateUserSelect.addEventListener('change', syncUpdateRoleSelect);
 
         // 事件處置
         switchUserBtn.addEventListener('click', () => {
@@ -283,10 +339,31 @@
             }
         });
 
+        // 新增：更新人員職位/權限
+        updateRoleBtn.addEventListener('click', async () => {
+            const selectedUser = updateUserSelect.value;
+            const newRole = updateMemberRoleSelect.value;
+
+            if (!selectedUser) return alert('⚠️ 請先選擇要修改職位的人員！');
+            if (selectedUser === ADMIN_NAME) return alert('⚠ 管理者專屬帳號無法修改職位！');
+
+            const { error } = await supabaseClient
+                .from('members')
+                .update({ role: newRole })
+                .eq('name', selectedUser);
+
+            if (error) {
+                alert('❌ 職位更新失敗：' + error.message);
+            } else {
+                await fetchCloudData();
+                alert(`🎉 已成功將「${selectedUser}」的職位更新為【${getRoleDisplayName(newRole)}】！`);
+            }
+        });
+
         deleteMemberBtn.addEventListener('click', async () => {
             const selected = deleteUserSelect.value;
-            if (!selected) return alert('⚠️️ 請先選擇要刪除的人員！');
-            if (selected === ADMIN_NAME) return alert('⚠️️ 此為管理者專屬入口，無法刪除！');
+            if (!selected) return alert('⚠ 請先選擇要刪除的人員！');
+            if (selected === ADMIN_NAME) return alert('⚠ 此為管理者專屬入口，無法刪除！');
             
             if (confirm(`❓ 確定要刪除「${selected}」嗎？`)) {
                 const { error } = await supabaseClient.from('members').delete().eq('name', selected);
