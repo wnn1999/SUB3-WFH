@@ -98,7 +98,7 @@
 
                     <div class="h-3 w-px bg-amber-300 hidden sm:block"></div>
 
-                    <!-- 2. 修改職位 / 人員升級 (新增功能) -->
+                    <!-- 2. 修改職位 / 人員升級 -->
                     <div class="flex gap-1.5 items-center">
                         <select id="updateUserSelect" class="bg-white border border-slate-200 text-xs rounded-md px-2 py-1 outline-none focus:ring-2 focus:ring-amber-400">
                             <!-- 動態填入變更職位名單 -->
@@ -172,11 +172,9 @@
     </div>
 
     <script>
-        // 避開全域名稱衝突，將變數命名為 supabaseClient
         const SUPABASE_URL = 'https://djjczmcajxjyqjkbjoud.supabase.co';
         const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_kHc06K5jzjqPiAVj-eMGTg_1oOhA_6t';
         
-        // 使用 window.supabase 建立 Client 並賦值給 supabaseClient
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
         const HOLIDAYS_2027 = {
@@ -195,6 +193,19 @@
 
         const ADMIN_NAME = 'Jovin大大專屬';
         const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+
+        // 指定表格人員的固定順序
+        const MEMBER_ORDER = [
+            'Sally',
+            'Hanwei',
+            'Winnie',
+            'Quiny',
+            'Angela',
+            'Hillary',
+            'Celia',
+            'Wendy',
+            'Jovin大大專屬'
+        ];
 
         let memberRoles = {};
         let members = [];
@@ -223,14 +234,32 @@
         const activeUserBadge = document.getElementById('activeUserBadge');
         const adminPanel = document.getElementById('adminPanel');
 
+        // --- 排序輔助函式 ---
+        function sortMembersList(memberKeys) {
+            return memberKeys.sort((a, b) => {
+                let idxA = MEMBER_ORDER.indexOf(a);
+                let idxB = MEMBER_ORDER.indexOf(b);
+                
+                if (idxA === -1) idxA = 999;
+                if (idxB === -1) idxB = 999;
+                
+                if (idxA !== idxB) {
+                    return idxA - idxB;
+                }
+                return a.localeCompare(b, 'zh-TW');
+            });
+        }
+
         // --- 雲端資料同步機制 ---
         async function fetchCloudData() {
             const { data: memberRows, error: mErr } = await supabaseClient.from('members').select('*');
             if (!mErr && memberRows) {
                 memberRoles = {};
                 memberRows.forEach(row => { memberRoles[row.name] = row.role; });
-                const keys = Object.keys(memberRoles).filter(m => m !== ADMIN_NAME);
-                members = [...keys, ADMIN_NAME];
+                
+                let keys = Object.keys(memberRoles);
+                members = sortMembersList(keys);
+                
                 updateMemberDropdowns();
             }
 
@@ -285,7 +314,7 @@
                     opt2.innerText = name;
                     deleteUserSelect.appendChild(opt2);
 
-                    // 3. 更新職位選單 (新增)
+                    // 3. 更新職位選單
                     const opt3 = document.createElement('option');
                     opt3.value = name;
                     opt3.innerText = `${name} (${getRoleDisplayName(memberRoles[name])})`;
@@ -339,7 +368,7 @@
             }
         });
 
-        // 新增：更新人員職位/權限
+        // 手動更新人員職位時，保持原順序完全不動
         updateRoleBtn.addEventListener('click', async () => {
             const selectedUser = updateUserSelect.value;
             const newRole = updateMemberRoleSelect.value;
@@ -355,7 +384,10 @@
             if (error) {
                 alert('❌ 職位更新失敗：' + error.message);
             } else {
-                await fetchCloudData();
+                // 僅更新職位紀錄，保持原本的 members 順序與表格完全一致
+                memberRoles[selectedUser] = newRole;
+                updateMemberDropdowns();
+                renderMatrix();
                 alert(`🎉 已成功將「${selectedUser}」的職位更新為【${getRoleDisplayName(newRole)}】！`);
             }
         });
