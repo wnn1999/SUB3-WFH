@@ -179,9 +179,9 @@
 
         const HOLIDAYS_2027 = {
             '2027-01-01': '中華民國開國紀念日', '2027-01-02': '元旦連假', '2027-01-03': '元旦連假',
-            '2027-02-06': '農曆春節彈性放假', '2027-02-07': '春節週末', '2027-02-08': '農曆除夕',
-            '2027-02-09': '春節(初一)', '2027-02-10': '春節(初二)', '2027-02-11': '春節(初三)',
-            '2027-02-12': '春節補假', '2027-02-13': '春節週末', '2027-02-14': '春節週末',
+            '2027-02-04': '農曆春節連假', '2027-02-05': '農曆除夕',
+            '2027-02-06': '春節(初一)', '2027-02-07': '春節(初二)', '2027-02-08': '春節(初三)',
+            '2027-02-09': '春節補假', '2027-02-10': '春節連假',
             '2027-02-27': '228和平紀念日連假', '2027-02-28': '228和平紀念日', '2027-03-01': '228和平紀念日補假',
             '2027-04-03': '清明連假', '2027-04-04': '兒童節', '2027-04-05': '民族掃墓節(清明節)',
             '2027-04-06': '兒童節補假', '2027-04-30': '調整放假日', '2027-06-09': '指定放假日',
@@ -194,7 +194,7 @@
         const ADMIN_NAME = 'Jovin大大專屬';
         const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
-        // 指定表格人員的固定順序
+        // 指定一般人員的固定排序基準（Jovin大大專屬將由排序函式強制放在最後一列）
         const MEMBER_ORDER = [
             'Sally',
             'Hanwei',
@@ -203,8 +203,7 @@
             'Angela',
             'Hillary',
             'Celia',
-            'Wendy',
-            'Jovin大大專屬'
+            'Wendy'
         ];
 
         let memberRoles = {};
@@ -234,9 +233,12 @@
         const activeUserBadge = document.getElementById('activeUserBadge');
         const adminPanel = document.getElementById('adminPanel');
 
-        // --- 排序輔助函式 ---
+        // --- 排序輔助函式：確保 ADMIN_NAME (Jovin大大專屬) 永遠在最後一列 ---
         function sortMembersList(memberKeys) {
-            return memberKeys.sort((a, b) => {
+            const hasAdmin = memberKeys.includes(ADMIN_NAME);
+            const regularMembers = memberKeys.filter(name => name !== ADMIN_NAME);
+
+            regularMembers.sort((a, b) => {
                 let idxA = MEMBER_ORDER.indexOf(a);
                 let idxB = MEMBER_ORDER.indexOf(b);
                 
@@ -248,6 +250,8 @@
                 }
                 return a.localeCompare(b, 'zh-TW');
             });
+
+            return hasAdmin ? [...regularMembers, ADMIN_NAME] : regularMembers;
         }
 
         // --- 雲端資料同步機制 ---
@@ -384,7 +388,6 @@
             if (error) {
                 alert('❌ 職位更新失敗：' + error.message);
             } else {
-                // 僅更新職位紀錄，保持原本的 members 順序與表格完全一致
                 memberRoles[selectedUser] = newRole;
                 updateMemberDropdowns();
                 renderMatrix();
